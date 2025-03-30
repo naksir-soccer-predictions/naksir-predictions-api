@@ -29,3 +29,10 @@ def update_prediction():
     with open(JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     return jsonify({"status": "Prediction updated successfully"})
+    
+import os
+
+if name == "main":
+    port = int(os.environ.get("PORT", 
+5000))
+    app.run(host="0.0.0.0", port=port)
