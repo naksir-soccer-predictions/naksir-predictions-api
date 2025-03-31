@@ -1,8 +1,9 @@
 
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, request, render_template_string
 import os
 import secrets
 from datetime import datetime, timedelta
+import json
 
 app = Flask(__name__)
 
@@ -10,7 +11,7 @@ TOKENS = {}
 
 def generate_token(user_id):
     token = secrets.token_urlsafe(16)
-    expiration = datetime.utcnow() + timedelta(minutes=60)
+    expiration = datetime.utcnow() + timedelta(hours=1)
     TOKENS[token] = {"user_id": user_id, "expires": expiration}
     return token
 
@@ -25,7 +26,7 @@ def validate_token(token):
 
 @app.route("/")
 def home():
-    return "Naksir Prediction API is live"
+    return "Naksir Predictions API is live"
 
 @app.route("/generate-token", methods=["GET"])
 def generate_token_route():
@@ -37,6 +38,12 @@ def generate_token_route():
 def validate_token_route():
     token = request.args.get("token")
     return {"valid": validate_token(token)}
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = request.json
+    print("Received update:", json.dumps(update, indent=2))
+    return {"ok": True}
 
 @app.route("/soccer")
 def soccer():
@@ -67,88 +74,6 @@ def soccer():
     </html>
     """
     return render_template_string(html)
-
-@app.route("/admin", methods=["GET"])
-def admin():
-    html = """
-    <div style="padding: 30px; font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-      <h2>Admin Panel – Naksir Premium Predictions</h2>
-
-      <label>Password:</label><br>
-      <input type="password" id="pass" style="width:100%; padding:8px;"><br><br>
-
-      <label>Competition:</label><br>
-      <input type="text" id="competition" style="width:100%; padding:8px;"><br><br>
-
-      <label>Match:</label><br>
-      <input type="text" id="match" style="width:100%; padding:8px;"><br><br>
-
-      <label>Over 2.5 Goals %:</label><br>
-      <input type="text" id="over" style="width:100%; padding:8px;"><br><br>
-
-      <label>Under 2.5 Goals %:</label><br>
-      <input type="text" id="under" style="width:100%; padding:8px;"><br><br>
-
-      <label>BTTS Yes %:</label><br>
-      <input type="text" id="bttsYes" style="width:100%; padding:8px;"><br><br>
-
-      <label>BTTS No %:</label><br>
-      <input type="text" id="bttsNo" style="width:100%; padding:8px;"><br><br>
-
-      <label>Match Outcome - Team 1 Win %:</label><br>
-      <input type="text" id="win1" style="width:100%; padding:8px;"><br><br>
-
-      <label>Draw %:</label><br>
-      <input type="text" id="draw" style="width:100%; padding:8px;"><br><br>
-
-      <label>Match Outcome - Team 2 Win %:</label><br>
-      <input type="text" id="win2" style="width:100%; padding:8px;"><br><br>
-
-      <label>Highest Probability Bet:</label><br>
-      <input type="text" id="bestbet" style="width:100%; padding:8px;"><br><br>
-
-      <button onclick="submitPrediction()" style="padding: 10px 30px;">Submit</button>
-
-      <script>
-        async function submitPrediction() {
-          const password = document.getElementById("pass").value;
-          if (password !== "naksir2024") {
-            alert("Wrong password");
-            return;
-          }
-
-          const data = {
-            competition: document.getElementById("competition").value,
-            match: document.getElementById("match").value,
-            overUnder: {
-              "Over 2.5 Goals": document.getElementById("over").value,
-              "Under 2.5 Goals": document.getElementById("under").value
-            },
-            btts: {
-              "Yes": document.getElementById("bttsYes").value,
-              "No": document.getElementById("bttsNo").value
-            },
-            outcome: {
-              "Team 1 Win": document.getElementById("win1").value,
-              "Draw": document.getElementById("draw").value,
-              "Team 2 Win": document.getElementById("win2").value
-            },
-            highestBet: document.getElementById("bestbet").value
-          };
-
-          console.log("Submitted prediction:", data);
-          alert("Prediction submitted (simulated).");
-        }
-      </script>
-    </div>
-    """
-    return render_template_string(html)
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.get_json()
-    print("Received webhook data:", data)
-    return '', 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
