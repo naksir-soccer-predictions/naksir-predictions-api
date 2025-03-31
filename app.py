@@ -3,18 +3,18 @@ from flask import Flask, request, render_template_string, jsonify
 import os
 import secrets
 from datetime import datetime, timedelta
-import requests
+import telegram
+from telegram import Update, LabeledPrice
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
 
 app = Flask(__name__)
 
-BOT_TOKEN = "7810937535:AAGgsmOSwXTZ-riH5tEWLMUb_azG5K5FCWQ"
-BOT_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
+# Token storage
 TOKENS = {}
 
 def generate_token(user_id):
     token = secrets.token_urlsafe(16)
-    expiration = datetime.utcnow() + timedelta(hours=1)
+    expiration = datetime.utcnow() + timedelta(minutes=10)
     TOKENS[token] = {"user_id": user_id, "expires": expiration}
     return token
 
@@ -27,40 +27,42 @@ def validate_token(token):
         return False
     return True
 
+# Route za proveru rada
 @app.route("/")
 def home():
     return "Naksir Predictions API is live"
 
+# Generisanje tokena
 @app.route("/generate-token", methods=["GET"])
 def generate_token_route():
     user_id = request.args.get("user_id", "anonymous")
     token = generate_token(user_id)
     return {"token": token}
 
+# Validacija tokena
 @app.route("/validate-token", methods=["GET"])
 def validate_token_route():
     token = request.args.get("token")
     return {"valid": validate_token(token)}
 
+# Soccer stranica
 @app.route("/soccer")
 def soccer():
     token = request.args.get("token")
     if not token or not validate_token(token):
         return "<h2 style='color:red;'>❌ Unauthorized. Please access via Telegram Mini App.</h2>", 401
 
-    html = '''
+    html = """
     <html>
     <head>
         <title>Naksir Premium Predictions</title>
         <meta http-equiv="refresh" content="60">
         <style>
             body { font-family: Arial; text-align: center; padding: 20px; }
-            .loader { width: 50px; height: 50px; background: url('https://i.imgur.com/6RMhx.gif') no-repeat center; background-size: contain; margin: 20px auto; }
         </style>
     </head>
     <body>
         <h2>⚽️ Naksir Premium Predictions</h2>
-        <div class="loader"></div>
         <p><b>📅 Competition:</b> Italy Serie A</p>
         <p><b>🏟 Match:</b> Juventus vs Genoa</p>
         <p><b>🎯 Total Goals (Over/Under 2.5):</b><br>Over: 40%<br>Under: 60%</p>
@@ -69,28 +71,58 @@ def soccer():
         <p><b>💡 Highest Probability Bet:</b><br><span style='color:blue;'>Juventus to win 70%</span></p>
     </body>
     </html>
-    '''
+    """
     return render_template_string(html)
 
+# Admin panel
+@app.route("/admin")
+def admin():
+    html = """
+    <html>
+    <head><title>Admin Panel</title></head>
+    <body style='font-family:Arial; max-width:600px; margin:auto; padding:20px;'>
+        <h2>Naksir Admin Panel</h2>
+        <form action="/submit" method="post">
+            Password:<br><input type="password" name="password" style="width:100%"><br><br>
+            Competition:<br><input type="text" name="competition" style="width:100%"><br><br>
+            Match:<br><input type="text" name="match" style="width:100%"><br><br>
+            Highest Bet:<br><input type="text" name="highest" style="width:100%"><br><br>
+            <button type="submit">Submit</button>
+        </form>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
+
+# Obrada admin unosa
+@app.route("/submit", methods=["POST"])
+def submit():
+    password = request.form.get("password")
+    if password != "naksir2025":
+        return "<h3 style='color:red;'>Wrong password</h3>"
+
+    data = {
+        "competition": request.form.get("competition"),
+        "match": request.form.get("match"),
+        "highestBet": request.form.get("highest")
+    }
+    with open("prediction.json", "w") as f:
+        f.write(str(data))
+    return "<h3 style='color:green;'>Submitted successfully</h3>"
+
+# Webhook endpoint
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    return jsonify(ok=True)
+
+# Create invoice endpoint
 @app.route("/create-invoice", methods=["POST"])
 def create_invoice():
-    payload = {
-        "title": "Naksir Premium Tip",
-        "description": "Access today's top soccer prediction",
-        "payload": "{}",
-        "provider_token": "",
-        "currency": "XTR",
-        "prices": [{"amount": 50, "label": "Premium Tip"}],
-    }
+    return jsonify({
+        "invoiceLink": "https://t.me/NaksirSoccerPredictions_bot?start=naksir_invoice"
+    })
 
-    response = requests.post(f"{BOT_API}/createInvoiceLink", json=payload)
-    data = response.json()
-
-    if not data.get("ok"):
-        return jsonify({"error": "Failed to create invoice"}), 500
-
-    return jsonify({"invoiceLink": data["result"]})
-
+# Pokretanje servera
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
