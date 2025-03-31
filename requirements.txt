@@ -1,4 +1,4 @@
 flask
 requests
-telegram
-modul
+os
+secrets
