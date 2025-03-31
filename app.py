@@ -1,53 +1,71 @@
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
-import os
-import uuid
+from flask import Flask, request, render_template_string
+import secrets
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)
 
-JSON_FILE = "prediction.json"
 TOKENS = {}
 
+def generate_token(user_id):
+    token = secrets.token_urlsafe(16)
+    expiration = datetime.utcnow() + timedelta(minutes=5)
+    TOKENS[token] = {"user_id": user_id, "expires": expiration}
+    return token
+
+def validate_token(token):
+    token_data = TOKENS.get(token)
+    if not token_data:
+        return False
+    if datetime.utcnow() > token_data["expires"]:
+        del TOKENS[token]
+        return False
+    return True
+
 @app.route("/")
-def index():
+def home():
     return "Naksir Prediction API is live"
 
-@app.route("/get", methods=["GET"])
-def get_prediction():
-    token = request.args.get("token")
-    if not token or token not in TOKENS or TOKENS[token] < datetime.utcnow():
-        return jsonify({"error": "Unauthorized"}), 403
-    with open(JSON_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return jsonify(data)
-
-@app.route("/update", methods=["POST"])
-def update_prediction():
-    data = request.get_json()
-    password = request.args.get("pass")
-    if password != "naksir2025":
-        return jsonify({"error": "Unauthorized"}), 403
-    with open(JSON_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    return jsonify({"status": "Prediction updated successfully"})
-
-@app.route("/generate-token", methods=["POST"])
-def generate_token():
-    # Ova ruta se poziva iz Telegram mini app-a posle plaćanja
-    token = str(uuid.uuid4())
-    TOKENS[token] = datetime.utcnow() + timedelta(minutes=10)
-    return jsonify({"token": token})
+@app.route("/generate-token", methods=["GET"])
+def generate_token_route():
+    user_id = request.args.get("user_id", "anonymous")
+    token = generate_token(user_id)
+    return {"token": token}
 
 @app.route("/validate-token", methods=["GET"])
-def validate_token():
+def validate_token_route():
     token = request.args.get("token")
-    if token in TOKENS and TOKENS[token] > datetime.utcnow():
-        return jsonify({"valid": True})
-    return jsonify({"valid": False})
+    return {"valid": validate_token(token)}
+
+@app.route("/soccer")
+def soccer():
+    token = request.args.get("token")
+    if not token or not validate_token(token):
+        return "<h2 style='color:red;'>❌ Unauthorized. Please access via Telegram Mini App.</h2>", 401
+
+    html = """
+    <html>
+    <head>
+        <title>Naksir Premium Predictions</title>
+        <meta http-equiv="refresh" content="60">
+        <style>
+            body { font-family: Arial; text-align: center; padding: 20px; }
+            .loader { width: 50px; height: 50px; background: url('https://i.imgur.com/6RMhx.gif') no-repeat center; background-size: contain; margin: 20px auto; }
+        </style>
+    </head>
+    <body>
+        <h2>⚽ Naksir Premium Predictions</h2>
+        <div class="loader"></div>
+        <p><b>📅 Competition:</b> Italy Serie A</p>
+        <p><b>🏟 Match:</b> Juventus vs Genoa</p>
+        <p><b>🎯 Total Goals (Over/Under 2.5):</b><br>Over: 40%<br>Under: 60%</p>
+        <p><b>📘 BTTS:</b><br>Yes: 35%<br>No: 65%</p>
+        <p><b>⏱ Match Outcome:</b><br>Team 1 Win: 70%<br>Draw: 20%<br>Team 2 Win: 10%</p>
+        <p><b>💡 Highest Probability Bet:</b><br><span style='color:blue;'>Juventus to win 70%</span></p>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
