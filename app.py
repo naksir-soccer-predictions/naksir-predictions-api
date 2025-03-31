@@ -3,19 +3,16 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-app = Flask("name")
+app = Flask(__name__)
 
-# Memorija za tokene
 TOKENS = {}
 
-# Generisanje tokena
 def generate_token(user_id):
     token = secrets.token_urlsafe(16)
     expiration = datetime.utcnow() + timedelta(minutes=5)
     TOKENS[token] = {"user_id": user_id, "expires": expiration}
     return token
 
-# Validacija tokena
 def validate_token(token):
     token_data = TOKENS.get(token)
     if not token_data:
@@ -46,7 +43,6 @@ def soccer():
     if not token or not validate_token(token):
         return "<h2 style='color:red;'>❌ Unauthorized. Please access via Telegram Mini App.</h2>", 401
 
-    # HTML sa predikcijama (ovde menjaš podatke ručno ili kroz backend logiku)
     html = """
     <html>
     <head>
@@ -71,6 +67,6 @@ def soccer():
     """
     return render_template_string(html)
 
-if __name__ == "main":
-    port = int(os.environ.get("PORT", 5000))
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
