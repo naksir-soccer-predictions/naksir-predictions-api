@@ -3,7 +3,8 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-app = Flask("name")
+app = Flask(__name__)
+
 TOKENS = {}
 PREDICTIONS = {}
 ADMIN_PASSWORD = "naksir2024"
@@ -27,26 +28,26 @@ def validate_token(token):
 def home():
     return "Naksir Prediction API is live"
 
-@app.route("/generate-token", methods=["GET"])
+@app.route("/generate-token")
 def generate_token_route():
     user_id = request.args.get("user_id", "anonymous")
     token = generate_token(user_id)
     return {"token": token}
 
-@app.route("/validate-token", methods=["GET"])
+@app.route("/validate-token")
 def validate_token_route():
     token = request.args.get("token")
     return {"valid": validate_token(token)}
 
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
-    password = request.args.get("pw")
+    password = request.args.get("password")
     if password != ADMIN_PASSWORD:
-        return "<h3 style='color:red;'>Access Denied</h3>", 401
+        return "Unauthorized", 401
 
     if request.method == "POST":
-        data = {
-            "date": datetime.now().strftime("%d %b %Y"),
+        PREDICTIONS["prediction"] = {
+            "date": request.form["date"],
             "competition": request.form["competition"],
             "match": request.form["match"],
             "over": request.form["over"],
@@ -56,25 +57,24 @@ def admin():
             "win1": request.form["win1"],
             "draw": request.form["draw"],
             "win2": request.form["win2"],
-            "highest": request.form["highest"],
+            "highest": request.form["highest"]
         }
-        PREDICTIONS["today"] = data
-        return redirect("/admin?pw=" + password)
+        return redirect("/admin?password=" + password)
 
     form_html = """
-    <h2>Naksir Admin Panel</h2>
-    <form method="post">
-        Competition: <input name="competition"><br>
-        Match: <input name="match"><br>
-        Over %: <input name="over"><br>
-        Under %: <input name="under"><br>
-        BTTS Yes %: <input name="btts_yes"><br>
-        BTTS No %: <input name="btts_no"><br>
-        Win Team 1 %: <input name="win1"><br>
-        Draw %: <input name="draw"><br>
-        Win Team 2 %: <input name="win2"><br>
-        Highest Bet: <input name="highest"><br>
-        <button type="submit">Save</button>
+    <form method="POST">
+        <input name="date" placeholder="Date"><br>
+        <input name="competition" placeholder="Competition"><br>
+        <input name="match" placeholder="Match"><br>
+        <input name="over" placeholder="Over 2.5 %"><br>
+        <input name="under" placeholder="Under 2.5 %"><br>
+        <input name="btts_yes" placeholder="BTTS Yes %"><br>
+        <input name="btts_no" placeholder="BTTS No %"><br>
+        <input name="win1" placeholder="Team 1 Win %"><br>
+        <input name="draw" placeholder="Draw %"><br>
+        <input name="win2" placeholder="Team 2 Win %"><br>
+        <input name="highest" placeholder="Highest Bet"><br>
+        <button type="submit">Submit</button>
     </form>
     """
     return render_template_string(form_html)
@@ -85,13 +85,13 @@ def soccer():
     if not token or not validate_token(token):
         return "<h2 style='color:red;'>❌ Unauthorized. Please access via Telegram Mini App.</h2>", 401
 
-    p = PREDICTIONS.get("today")
+    p = PREDICTIONS.get("prediction", {})
     if not p:
-        return "<h3>No predictions published today yet.</h3>"
+        return "<h2>No predictions available yet.</h2>"
 
     html = f"""
-    <html><head><title>Naksir Predictions</title></head><body>
-    <h2>⚽️ Naksir Premium Predictions ({p['date']})</h2>
+    <html><head><meta http-equiv='refresh' content='60'></head><body>
+    <h2>⚽ Naksir Premium Predictions ({p['date']})</h2>
     <p><b>Competition:</b> {p['competition']}</p>
     <p><b>Match:</b> {p['match']}</p>
     <p><b>Total Goals (Over/Under 2.5):</b><br>Over: {p['over']}%<br>Under: {p['under']}%</p>
@@ -100,9 +100,8 @@ def soccer():
     <p><b>💡 Highest Probability Bet:</b><br><span style='color:blue;'>{p['highest']}</span></p>
     </body></html>
     """
-    return html
+    return render_template_string(html)
 
-if __name__ == "main":
-    port = int(os.environ.get("PORT", 10000))  # Render sam postavi PORT, ne moraš ništa ručno
-    app.run(host="0.0.0.0",
-             port=port)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
